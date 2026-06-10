@@ -10,9 +10,9 @@ I was looking into what it would take to do this project in C, and it seemed way
 
 --verbose flag will output the events as they come in.
 
-setup (for mac):
-Set vmpk MIDI OUT driver to CoreMIDI (this will be different for different systems)
-python -m venv venv
-source venv/bin/activate
-pip install sounddevice mido python-rtmidi numpy
+setup (for mac):  
+Set vmpk MIDI OUT driver to CoreMIDI (this will be different for different systems)  
+python -m venv venv  
+source venv/bin/activate  
+pip install sounddevice mido python-rtmidi numpy  
 python synth.py
