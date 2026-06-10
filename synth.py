@@ -3,6 +3,11 @@ import sounddevice as sd
 import mido
 import numpy as np
 import threading
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--verbose', action='store_true')
+args = parser.parse_args()
 
 sample_rate = 48000.
 temporal_resolution = 0.01 #seconds of sound sent to callback function. 
@@ -55,8 +60,12 @@ def midi_listener():
   with mido.open_input(mido.get_input_names()[0]) as port:
     for msg in port:
       if msg.type == 'note_on' and msg.velocity > 0:
+        if args.verbose:
+          print(msg.note, " ON")
         note_states[msg.note][1] = 1
       elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+        if args.verbose:
+          print(msg.note, " OFF")
         note_states[msg.note][1] = 0
 
 # Run MIDI listener in background thread
@@ -65,5 +74,5 @@ t.start()
 with sd.OutputStream(samplerate=sample_rate, blocksize=callback_buf_size,
                      channels=1, dtype='float32', callback=callback):
     print("Synth On")
-    threading.Event().wait()  # block main thread forever
+    threading.Event().wait()  
 
