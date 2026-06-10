@@ -17,36 +17,53 @@ note_states = np.zeros(shape=(128,2), dtype=np.float32)
 
 note_phases = np.zeros(shape=(128,1), dtype=np.float32) #for keeping track of phase info for each note
 
-intro_mask = np.linspace(0., 1., num=callback_buf_size, endpoint=False) #fading in/out
+intro_mask = np.linspace(0., 1., num=callback_buf_size, endpoint=False).reshape(-1, 1) #fading in/out
 outro_mask = intro_mask[::-1].copy()
 
-'''
-def callback(indata, outdata, frames, time, status):
-  global note_states, note_phases, intro_mask, outro_mask
+
+#takes midi note number and returns a frequency
+def num_to_freq(n):
+  return 440 * (2 ** ((n - 69) / (12)))
+
+
+def callback(outdata, frames, time, status):
+  global note_states, note_phases, intro_mask, outro_mask, volume
   output = np.zeros(shape=(frames,1), dtype=np.float32)
-  if np.array_equal(note_states[21], [1,0]): #fade out
-  elif np.array_equal(note_states[21], [0,1]): #fade in
-  elif np.array_equal(note_states[21], [1,1]): #normal playing
+  active_notes = 0
+  for i in range(128): #for each note
+    if np.array_equal(note_states[i], [0,0]):
+      continue 
+    active_notes += 1
+    freq = num_to_freq(i)
+    sawtooth = (note_phases[i] + np.arange(frames).reshape(-1, 1) * (freq / sample_rate)) % 1.0
+    note_phases[i] = (note_phases[i] + frames * (freq / sample_rate)) % 1.0
+    if np.array_equal(note_states[i], [1,0]): #fade out
+      output += sawtooth * volume * outro_mask
+      note_states[i][0] = 0;
+    elif np.array_equal(note_states[i], [0,1]): #fade in
+      output += sawtooth * volume * intro_mask
+      note_states[i][0] = 1;
+    elif np.array_equal(note_states[i], [1,1]): #normal playing
+      output += sawtooth * volume 
+  if active_notes > 0:
+    output /= active_notes
   outdata[:] = output
-'''
-
-
-
 
 
 def midi_listener():
-  global envelope_states
+  global note_states
   with mido.open_input(mido.get_input_names()[0]) as port:
     for msg in port:
       if msg.type == 'note_on' and msg.velocity > 0:
-        envelope_states[msg.note][1] = 1
-        print(msg.note, envelope_states[msg.note])
+        note_states[msg.note][1] = 1
       elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
-        envelope_states[msg.note][1] = 0
-        print(msg.note, envelope_states[msg.note])
+        note_states[msg.note][1] = 0
 
 # Run MIDI listener in background thread
 t = threading.Thread(target=midi_listener, daemon=True)
 t.start()
-threading.Event().wait()
+with sd.OutputStream(samplerate=sample_rate, blocksize=callback_buf_size,
+                     channels=1, dtype='float32', callback=callback):
+    print("Synth On")
+    threading.Event().wait()  # block main thread forever
 
